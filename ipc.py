@@ -15,12 +15,26 @@ class IPC:
         self.identity = identity or secrets.token_hex(NONCE_BYTES)
         self.loop = loop or asyncio.get_event_loop()
         self.channel = None
+        self.handlers = {
+            method.lstrip("handle_"): getattr(self, method)
+            for method in dir(self)
+            if method.startswith("handle_")
+        }
         self.loop.create_task(self.listen_ipc)
         self.responses = {}
         self.nonces = []
         # Stores all the nonces sent by this identity
         # So that we aren't storing any responses that
         # are not calls from this identity
+
+
+    def add_handler(self, name, func):
+        self.handlers[name] = func
+
+
+    def remove_handler(self, name):
+        del self.handlers[name]
+
 
     async def ensure_channel(self):
         if self.channel is None:
@@ -39,6 +53,7 @@ class IPC:
                 await asyncio.sleep(CHECK_RESP_DELAY)
             else:
                 return data
+
 
     async def publish(self, op, **data):
         """
@@ -88,7 +103,7 @@ class IPC:
                 self.nonces.remove(nonce)
                 continue
  
-            handler = getattr(self, f"handle_{op}", None)
+            handler = self.handler.get(op)
             if handler:
                 resp = await handler(self, message)
                 if resp and nonce:
