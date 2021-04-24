@@ -5,7 +5,7 @@ import asyncio
 import aioredis
 
 NONCE_BYTES = 8
-CHECK_RESP_DELAY = 0.05
+
 
 class IPC:
     def __init__(self, loop=None, pool=None,
@@ -21,11 +21,7 @@ class IPC:
             if method.startswith("handle_")
         }
         self.loop.create_task(self.listen_ipc)
-        self.responses = {}
-        self.nonces = []
-        # Stores all the nonces sent by this identity
-        # So that we aren't storing any responses that
-        # are not calls from this identity
+        self.nonces = {} # nonce: Future
 
 
     def add_handler(self, name, func):
@@ -39,20 +35,6 @@ class IPC:
     async def ensure_channel(self):
         if self.channel is None:
             self.channel = await self.redis.subscribe(self.channel_address)
-
-
-    async def get_nonce_resp(self, nonce):
-        """
-        Checks self.responses every CHECK_RESP_DELAY seconds to see
-        if the nonce response shows up
-        """
-        while True:
-            try:
-                data = self.responses.pop(nonce)
-            except asyncio.TimeoutError:
-                await asyncio.sleep(CHECK_RESP_DELAY)
-            else:
-                return data
 
 
     async def publish(self, op, **data):
@@ -87,8 +69,12 @@ class IPC:
         data["op"] = op
         data["nonce"] = nonce
         data["sender"] = self.identity
+
+        future = self.loop.create_future()
+        self.nonces[nonce] = future
+
         await self.redis.publish(self.channel_address, data)
-        return await asyncio.wait_for(self.get_nonce_resp(nonce), timeout=timeout)
+        return await asyncio.wait_for(future, timeout=timeout)
 
 
     async def listen_ipc(self):
@@ -99,8 +85,9 @@ class IPC:
             nonce = message.pop("nonce", None)
             sender = message.pop("sender", None)
             if sender != self.identity and nonce in self.nonces:
-                self.responses[nonce] = message
-                self.nonces.remove(nonce)
+                future = self.nonces[nonce]
+                future.set_result(message)
+                del self.nonces[nonce]
                 continue
  
             handler = self.handler.get(op)
@@ -110,3 +97,7 @@ class IPC:
                     resp["nonce"] = nonce
                     resp["sender"] = self.identity
                     await self.redis.publish(self.channel_address, resp)
+
+
+    await close(self):
+        pass
