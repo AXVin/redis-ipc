@@ -20,8 +20,8 @@ class IPC:
             for method in dir(self)
             if method.startswith("handle_")
         }
-        self.loop.create_task(self.listen_ipc)
         self.nonces = {} # nonce: Future
+        self.task = self.loop.create_task(self.listen_ipc)
 
 
     def add_handler(self, name, func):
@@ -73,8 +73,11 @@ class IPC:
         future = self.loop.create_future()
         self.nonces[nonce] = future
 
-        await self.redis.publish(self.channel_address, data)
-        return await asyncio.wait_for(future, timeout=timeout)
+        try:
+            await self.redis.publish(self.channel_address, data)
+            return await asyncio.wait_for(future, timeout=timeout)
+        finally:
+            del self.nonces[nonce]
 
 
     async def listen_ipc(self):
@@ -87,7 +90,6 @@ class IPC:
             if sender != self.identity and nonce in self.nonces:
                 future = self.nonces[nonce]
                 future.set_result(message)
-                del self.nonces[nonce]
                 continue
  
             handler = self.handler.get(op)
@@ -99,5 +101,9 @@ class IPC:
                     await self.redis.publish(self.channel_address, resp)
 
 
-    await close(self):
-        pass
+    async def close(self):
+        """
+        Close the IPC reciever
+        """
+        self.task.cancel()
+        await self.redis.unsubscribe(self.channel_address)
