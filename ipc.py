@@ -80,6 +80,17 @@ class IPC:
             del self.nonces[nonce]
 
 
+    async def _run_handler(self, handler, message, nonce):
+        try:
+            resp = await handler(self, message)
+            if resp and nonce:
+                resp["nonce"] = nonce
+                resp["sender"] = self.identity
+                await self.redis.publish(self.channel_address, resp)
+        except asyncio.CancelledError:
+            pass
+
+
     async def listen_ipc(self):
         await self.ensure_channel()
 
@@ -94,11 +105,10 @@ class IPC:
  
             handler = self.handler.get(op)
             if handler:
-                resp = await handler(self, message)
-                if resp and nonce:
-                    resp["nonce"] = nonce
-                    resp["sender"] = self.identity
-                    await self.redis.publish(self.channel_address, resp)
+                wrapped = self._run_handler(handler, message, nonce)
+                asyncio.create_task(wrapped,
+                                    name=f"redis-ipc: {op}")
+
 
 
     async def close(self):
