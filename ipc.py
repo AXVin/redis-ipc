@@ -1,4 +1,5 @@
 import json
+from typing import Dict
 import secrets
 import asyncio
 
@@ -20,7 +21,7 @@ class IPC:
             for method in dir(self)
             if method.startswith("handle_")
         }
-        self.nonces = {} # nonce: Future
+        self.nonces: Dict[str, asyncio.Future] = {}
         self.task = self.loop.create_task(self.listen_ipc)
 
 
@@ -32,12 +33,7 @@ class IPC:
         del self.handlers[name]
 
 
-    async def ensure_channel(self):
-        if self.channel is None:
-            self.channel = await self.redis.subscribe(self.channel_address)
-
-
-    async def publish(self, op, **data):
+    async def publish(self, op: str, **data):
         """
         A normal publish to the current channel
         with no expectations of any returns
@@ -64,7 +60,6 @@ class IPC:
         dict:
             The data sent by the first response
         """
-        await self.ensure_channel()
         nonce = secrets.token_hex(NONCE_BYTES)
         data["op"] = op
         data["nonce"] = nonce
@@ -82,7 +77,7 @@ class IPC:
 
     async def _run_handler(self, handler, message, nonce):
         try:
-            resp = await handler(self, message)
+            resp = await handler(message)
             if resp and nonce:
                 resp["nonce"] = nonce
                 resp["sender"] = self.identity
@@ -90,24 +85,31 @@ class IPC:
         except asyncio.CancelledError:
             pass
 
+    async def ensure_channel(self):
+        if self.channel is None:
+            self.channel = await self.redis.subscribe(self.channel_address)
+
 
     async def listen_ipc(self):
-        await self.ensure_channel()
+        try:
+            await self.ensure_channel()
 
-        async for message in self.channel.iter(encoding="utf-8", decoder=json.loads):
-            op = message.pop("op")
-            nonce = message.pop("nonce", None)
-            sender = message.pop("sender", None)
-            if sender != self.identity and nonce in self.nonces:
-                future = self.nonces[nonce]
-                future.set_result(message)
-                continue
- 
-            handler = self.handler.get(op)
-            if handler:
-                wrapped = self._run_handler(handler, message, nonce)
-                asyncio.create_task(wrapped,
-                                    name=f"redis-ipc: {op}")
+            async for message in self.channel.iter(encoding="utf-8", decoder=json.loads):
+                op = message.pop("op")
+                nonce = message.pop("nonce", None)
+                sender = message.pop("sender", None)
+                if sender != self.identity and nonce in self.nonces:
+                    future = self.nonces[nonce]
+                    future.set_result(message)
+                    continue
+     
+                handler = self.handler.get(op)
+                if handler:
+                    wrapped = self._run_handler(handler, message, nonce)
+                    asyncio.create_task(wrapped,
+                                        name=f"redis-ipc: {op}")
+        except asyncio.CancelledError:
+            await self.redis.unsubscribe(self.channel_address)
 
 
 
