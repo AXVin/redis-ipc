@@ -41,7 +41,7 @@ class IPC:
         with no expectations of any returns
         """
         data["op"] = op
-        await self.redis.publish_json(self.channel_address, data)
+        await self.redis.publish(self.channel_address, data)
 
 
     async def get(self, op, *, timeout=5, **data):
@@ -71,7 +71,7 @@ class IPC:
         self.nonces[nonce] = future
 
         try:
-            await self.redis.publish_json(self.channel_address, data)
+            await self.redis.publish(self.channel_address, data)
             return await asyncio.wait_for(future, timeout=timeout)
         finally:
             del self.nonces[nonce]
@@ -83,7 +83,7 @@ class IPC:
             if resp and nonce:
                 resp["nonce"] = nonce
                 resp["sender"] = self.identity
-                await self.redis.publish_json(self.channel_address, resp)
+                await self.redis.publish(self.channel_address, resp)
         except asyncio.CancelledError:
             pass
 
