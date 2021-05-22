@@ -1,3 +1,4 @@
+import os
 import json
 from typing import Dict
 import secrets
@@ -5,15 +6,16 @@ import asyncio
 
 import aioredis
 
-NONCE_BYTES = 8
 
+def random_hex(bytes=16):
+    return os.urandom(bytes).hex()
 
 class IPC:
     def __init__(self, loop=None, pool=None,
                  channel="ipc:1", identity=None):
         self.redis = pool
         self.channel_address = channel
-        self.identity = identity or secrets.token_hex(NONCE_BYTES)
+        self.identity = identity or random_hex()
         self.loop = loop or asyncio.get_event_loop()
         self.channel = None
         self.handlers = {
@@ -60,7 +62,7 @@ class IPC:
         dict:
             The data sent by the first response
         """
-        nonce = secrets.token_hex(NONCE_BYTES)
+        nonce = random_hex()
         data["op"] = op
         data["nonce"] = nonce
         data["sender"] = self.identity
