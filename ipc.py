@@ -98,8 +98,10 @@ class IPC:
     async def listen_ipc(self):
         try:
             await self.ensure_channel()
-            async for message in self.channel.listen():
-                # message = json.loads(message)
+            while True:
+            #async for message in self.channel.listen():
+                message = await channel.get_message(ignore_subscribe_messages=True)
+                message = json.loads(message)
                 print(message)
                 op = message.pop("op")
                 nonce = message.pop("nonce", None)
