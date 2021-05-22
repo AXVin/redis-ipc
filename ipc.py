@@ -100,7 +100,7 @@ class IPC:
             await self.ensure_channel()
             while True:
             #async for message in self.channel.listen():
-                message = await channel.get_message(ignore_subscribe_messages=True)
+                message = await self.channel.get_message(ignore_subscribe_messages=True)
                 message = json.loads(message)
                 print(message)
                 op = message.pop("op")
