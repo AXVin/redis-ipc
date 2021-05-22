@@ -24,7 +24,7 @@ class IPC:
             if method.startswith("handle_")
         }
         self.nonces: Dict[str, asyncio.Future] = {}
-        self.task = self.loop.create_task(self.listen_ipc())
+        # self.task = self.loop.create_task(self.listen_ipc())
 
 
     def add_handler(self, name, func):
