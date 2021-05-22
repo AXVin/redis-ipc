@@ -89,14 +89,15 @@ class IPC:
 
     async def ensure_channel(self):
         if self.channel is None:
-            self.channel = await self.redis.subscribe(self.channel_address)
+            pubsub = self.channel = self.redis.pubsub()
+            await pubsub.subscribe(self.channel_address)
 
 
     async def listen_ipc(self):
         try:
             await self.ensure_channel()
             print(self.channel, dir(self.channel))
-            async for message in self.channel.iter(encoding="utf-8", decoder=json.loads):
+            async for message in self.channel.listen():
                 op = message.pop("op")
                 nonce = message.pop("nonce", None)
                 sender = message.pop("sender", None)
@@ -113,6 +114,12 @@ class IPC:
         except asyncio.CancelledError:
             await self.redis.unsubscribe(self.channel_address)
 
+
+    async def start(self):
+        """
+        Starts the IPC server
+        """
+        await self.listen_ipc()
 
 
     async def close(self):
