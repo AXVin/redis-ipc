@@ -64,7 +64,7 @@ class IPC:
             The data sent by the first response
         """
         nonce = random_hex()
-        data["op"] = op
+        # data["op"] = op
         data["nonce"] = nonce
         data["sender"] = self.identity
 
