@@ -72,7 +72,7 @@ class IPC:
         self.nonces[nonce] = future
 
         try:
-            await self.publish(op, data)
+            await self.publish(op, **data)
             return await asyncio.wait_for(future, timeout=timeout)
         finally:
             del self.nonces[nonce]
@@ -109,7 +109,7 @@ class IPC:
                     future.set_result(message)
                     continue
      
-                handler = self.handler.get(op)
+                handler = self.handlers.get(op)
                 if handler:
                     wrapped = self._run_handler(handler, message, nonce)
                     asyncio.create_task(wrapped,
