@@ -112,7 +112,7 @@ class IPC:
                     asyncio.create_task(wrapped,
                                         name=f"redis-ipc: {op}")
         except asyncio.CancelledError:
-            await self.redis.unsubscribe(self.channel_address)
+            await self.channel.unsubscribe(self.channel_address)
 
 
     async def start(self):
@@ -127,4 +127,4 @@ class IPC:
         Close the IPC reciever
         """
         self.task.cancel()
-        await self.redis.unsubscribe(self.channel_address)
+        await self.channel.unsubscribe(self.channel_address)
