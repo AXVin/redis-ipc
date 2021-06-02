@@ -11,7 +11,7 @@ def random_hex(bytes=16):
     return os.urandom(bytes).hex()
 
 class IPC:
-    def __init__(self, loop=None, pool=None,
+    def __init__(self, pool, loop=None,
                  channel="ipc:1", identity=None):
         self.redis = pool
         self.channel_address = channel
@@ -19,12 +19,11 @@ class IPC:
         self.loop = loop or asyncio.get_event_loop()
         self.channel = None
         self.handlers = {
-            method.lstrip("handle_"): getattr(self, method)
+            method.replace("handle_", ""): getattr(self, method)
             for method in dir(self)
             if method.startswith("handle_")
         }
         self.nonces: Dict[str, asyncio.Future] = {}
-        # self.task = self.loop.create_task(self.listen_ipc())
 
 
     def add_handler(self, name, func):
@@ -80,7 +79,10 @@ class IPC:
 
     async def _run_handler(self, handler, message, nonce):
         try:
-            resp = await handler(message)
+            if message:
+                resp = await handler(message)
+            else:
+                resp = await handler()
             if resp and nonce:
                 resp["nonce"] = nonce
                 resp["sender"] = self.identity
@@ -98,15 +100,11 @@ class IPC:
     async def listen_ipc(self):
         try:
             await self.ensure_channel()
-            #while True:
             async for message in self.channel.listen():
-                # message = await self.channel.get_message(ignore_subscribe_messages=True)
                 if message.get("type") != "message":
                     continue
-                print(message)
                 message = json.loads(message.get("data"))
-                print(message)
-                op = message.pop("op")
+                op = message.pop("op", None)
                 nonce = message.pop("nonce", None)
                 sender = message.pop("sender", None)
                 if sender != self.identity and nonce in self.nonces:
@@ -134,5 +132,4 @@ class IPC:
         """
         Close the IPC reciever
         """
-        self.task.cancel()
         await self.channel.unsubscribe(self.channel_address)
