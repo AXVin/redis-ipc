@@ -44,14 +44,14 @@ class IPC:
         await self.redis.publish(self.channel_address, data)
 
 
-    async def get(self, op: str, *, timeout: int = 5, **data):
+    async def get(self, op, *, timeout=5, **data):
         """
         An IPC call to get a response back
 
         Parameters:
         -----------
         op: str
-            The operation to call on the other processes
+            The operation to call on the other process
         timeout: int
             How long to wait for a response
         data: kwargs
@@ -61,11 +61,6 @@ class IPC:
         --------
         dict:
             The data sent by the first response
-
-        Raises:
-        -------
-        asyncio.errors.TimeoutError:
-            when timeout runs out
         """
         nonce = random_hex()
         # data["op"] = op

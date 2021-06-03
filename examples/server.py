@@ -3,18 +3,17 @@ import aioredis
 from ipc import IPC
 
 class Server(IPC):
-
     async def handle_hello(self):
         return {"hello": "world"}
 
 
 async def main():
     pool = await aioredis.from_url('redis://localhost')
-    s = Server(pool)
+    ipc = Server(pool)
     try:
-        await s.start()
+        await ipc.start()
     finally:
-        await s.close()
+        await ipc.close()
 
 
 if __name__ == "__main__":

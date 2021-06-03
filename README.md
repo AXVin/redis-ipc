@@ -1,11 +1,12 @@
 # Redis IPC
-The redis ipc server and client
+A lightweight multiple producer and single consumer IPC server
+that uses redis pubsub as a broker
 
 Creates a redis ipc server that listens on a single pub/sub channel
 and allows you to communicate between multiple processes
 
 Subclass the IPC class and add your handlers as methods
-like this
+like this (handlers must start with `handle_` as their name)
 ```python
 async def handle_channel_update(self, data):
     return data
