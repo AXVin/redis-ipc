@@ -107,7 +107,7 @@ class IPC:
                 op = message.pop("op", None)
                 nonce = message.pop("nonce", None)
                 sender = message.pop("sender", None)
-                if sender != self.identity and nonce in self.nonces:
+                if op is None and sender != self.identity and nonce in self.nonces:
                     future = self.nonces[nonce]
                     future.set_result(message)
                     continue
