@@ -9,9 +9,9 @@ async def main():
     try:
         r = await client.get('hello')
     except asyncio.TimeoutError:
-        pass
+        print("We timed out")
     else:
-        print(r)
+        print("Data provided by the first producer:", r)
     finally:
         await client.close()
         t.cancel()
