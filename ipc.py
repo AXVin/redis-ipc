@@ -1,18 +1,16 @@
 import os
 import json
-from typing import Dict
-import secrets
+from typing import Any, Dict, Callable, List, Union
 import asyncio
 
-import aioredis
-
+JSON = Union[str, float, List['JSON'], Dict[str, 'JSON']]
 
 def random_hex(bytes=16):
     return os.urandom(bytes).hex()
 
 class IPC:
     def __init__(self, pool, loop=None,
-                 channel="ipc:1", identity=None):
+            channel: str = "ipc:1", identity: str = None):
         self.redis = pool
         self.channel_address = channel
         self.identity = identity or random_hex()
@@ -26,11 +24,11 @@ class IPC:
         self.nonces: Dict[str, asyncio.Future] = {}
 
 
-    def add_handler(self, name, func):
+    def add_handler(self, name: str, func: Callable[[Any], JSON]) -> None:
         self.handlers[name] = func
 
 
-    def remove_handler(self, name):
+    def remove_handler(self, name: str) -> None:
         del self.handlers[name]
 
 
