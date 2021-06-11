@@ -1,22 +1,33 @@
 import os
 import json
-from typing import Any, Dict, Callable, List, Union
+from typing import Any, Coroutine, Dict, Callable, List, Optional, TypedDict, Union
 import asyncio
 
-JSON = Union[str, float, List['JSON'], Dict[str, 'JSON']]
+JSON = Optional[Union[str, float, bool, List['JSON'], Dict[str, 'JSON']]]
+Handler = Callable[[Optional[JSON]], Coroutine[Any, Any, JSON]] 
 
-def random_hex(bytes=16):
+
+class _BaseIPCMessage(TypedDict, total=False):
+    op: str
+    data: JSON
+    nonce: str
+
+class IPCMessage(_BaseIPCMessage):
+    sender: str
+
+
+def random_hex(bytes: int = 16) -> str:
     return os.urandom(bytes).hex()
 
 class IPC:
     def __init__(self, pool, loop=None,
-            channel: str = "ipc:1", identity: str = None):
+            channel: str = "ipc:1", identity: str = None) -> None:
         self.redis = pool
         self.channel_address = channel
         self.identity = identity or random_hex()
         self.loop = loop or asyncio.get_event_loop()
         self.channel = None
-        self.handlers = {
+        self.handlers: Dict[str, Handler] = {
             method.replace("handle_", ""): getattr(self, method)
             for method in dir(self)
             if method.startswith("handle_")
@@ -24,7 +35,7 @@ class IPC:
         self.nonces: Dict[str, asyncio.Future] = {}
 
 
-    def add_handler(self, name: str, func: Callable[[Any], JSON]) -> None:
+    def add_handler(self, name: str, func: Handler) -> None:
         self.handlers[name] = func
 
 
@@ -32,7 +43,7 @@ class IPC:
         del self.handlers[name]
 
 
-    async def publish(self, op: str, **data):
+    async def publish(self, op: str, **data) -> None:
         """
         A normal publish to the current channel
         with no expectations of any returns
@@ -42,7 +53,7 @@ class IPC:
         await self.redis.publish(self.channel_address, data)
 
 
-    async def get(self, op: str, *, timeout: int = 5, **data):
+    async def get(self, op: str, *, timeout: int = 5, **data: JSON):
         """
         An IPC call to get a response back
 
@@ -80,33 +91,41 @@ class IPC:
             del self.nonces[nonce]
 
 
-    async def _run_handler(self, handler, message, nonce):
+    async def handle_hello(self, message: JSON) -> JSON:
+        return {'hello': 'world'}
+
+
+
+    async def _run_handler(self, handler: Handler,
+                           nonce: str, message: JSON = None) -> None:
         try:
-            if message:
-                resp = await handler(message)
-            else:
-                resp = await handler()
+            resp = await handler(message)
+
             if resp and nonce:
-                resp["nonce"] = nonce
-                resp["sender"] = self.identity
-                resp = json.dumps(resp)
+                data: IPCMessage = {
+                    'nonce': nonce,
+                    'sender': self.identity,
+                    'data': resp
+                }
+                resp = json.dumps(data)
                 await self.redis.publish(self.channel_address, resp)
         except asyncio.CancelledError:
             pass
 
-    async def ensure_channel(self):
+    async def ensure_channel(self) -> None:
         if self.channel is None:
             pubsub = self.channel = self.redis.pubsub()
             await pubsub.subscribe(self.channel_address)
 
 
-    async def listen_ipc(self):
+    async def listen_ipc(self) -> None:
         try:
             await self.ensure_channel()
             async for message in self.channel.listen():
                 if message.get("type") != "message":
                     continue
-                message = json.loads(message.get("data"))
+                data: Union[str, bytes] = message['data']
+                message: IPCMessage = json.loads(data)
                 op = message.pop("op", None)
                 nonce = message.pop("nonce", None)
                 sender = message.pop("sender", None)
