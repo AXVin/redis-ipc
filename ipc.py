@@ -1,7 +1,12 @@
+
 import os
 import json
-from typing import Any, Coroutine, Dict, Callable, List, Optional, TypedDict, Union
+from typing import Any, Coroutine, Dict, Callable, List, Optional, TYPE_CHECKING, TypedDict, Union
 import asyncio
+
+if TYPE_CHECKING:
+    from asyncio.events import AbstractEventLoop
+    from aioredis import Redis
 
 JSON = Optional[Union[str, float, bool, List['JSON'], Dict[str, 'JSON']]]
 Handler = Callable[[Optional[JSON]], Coroutine[Any, Any, JSON]] 
@@ -16,23 +21,23 @@ class IPCMessage(_BaseIPCMessage):
     sender: str
 
 
-def random_hex(bytes: int = 16) -> str:
-    return os.urandom(bytes).hex()
+def random_hex(_bytes: int = 16) -> str:
+    return os.urandom(_bytes).hex()
 
 class IPC:
-    def __init__(self, pool, loop=None,
-            channel: str = "ipc:1", identity: str = None) -> None:
+    def __init__(self, pool: Redis, loop: AbstractEventLoop=None,
+                 channel: str = "ipc:1", identity: str = None) -> None:
         self.redis = pool
         self.channel_address = channel
         self.identity = identity or random_hex()
-        self.loop = loop or asyncio.get_event_loop()
+        self.loop = loop or asyncio.get_running_loop()
         self.channel = None
         self.handlers: Dict[str, Handler] = {
             method.replace("handle_", ""): getattr(self, method)
             for method in dir(self)
             if method.startswith("handle_")
         }
-        self.nonces: Dict[str, asyncio.Future] = {}
+        self.nonces: Dict[str, asyncio.Future[JSON]] = {}
 
 
     def add_handler(self, name: str, func: Handler) -> None:
@@ -43,17 +48,17 @@ class IPC:
         del self.handlers[name]
 
 
-    async def publish(self, op: str, **data) -> None:
+    async def publish(self, op: str, **data: JSON) -> None:
         """
         A normal publish to the current channel
         with no expectations of any returns
         """
         data["op"] = op
-        data = json.dumps(data)
-        await self.redis.publish(self.channel_address, data)
+        resp = json.dumps(data)
+        await self.redis.publish(self.channel_address, resp)
 
 
-    async def get(self, op: str, *, timeout: int = 5, **data: JSON):
+    async def get(self, op: str, *, timeout: int = 5, **data: JSON) -> JSON:
         """
         An IPC call to get a response back
 
@@ -81,7 +86,7 @@ class IPC:
         data["nonce"] = nonce
         data["sender"] = self.identity
 
-        future = self.loop.create_future()
+        future: asyncio.Future[JSON] = self.loop.create_future()
         self.nonces[nonce] = future
 
         try:
@@ -91,13 +96,8 @@ class IPC:
             del self.nonces[nonce]
 
 
-    async def handle_hello(self, message: JSON) -> JSON:
-        return {'hello': 'world'}
-
-
-
     async def _run_handler(self, handler: Handler,
-                           nonce: str, message: JSON = None) -> None:
+                           nonce: Optional[str], message: JSON = None) -> None:
         try:
             resp = await handler(message)
 
@@ -121,37 +121,39 @@ class IPC:
     async def listen_ipc(self) -> None:
         try:
             await self.ensure_channel()
-            async for message in self.channel.listen():
-                if message.get("type") != "message":
+            async for msg in self.channel.listen():
+                if msg.get("type") != "message":
                     continue
-                data: Union[str, bytes] = message['data']
+                data: Union[str, bytes] = msg.get('data')
                 message: IPCMessage = json.loads(data)
                 op = message.pop("op", None)
                 nonce = message.pop("nonce", None)
                 sender = message.pop("sender", None)
-                if op is None and sender != self.identity and nonce in self.nonces:
-                    future = self.nonces[nonce]
-                    future.set_result(message)
+                if op is None and sender != self.identity and \
+                        nonce is not None and nonce in self.nonces:
+                    future = self.nonces.get(nonce)
+                    future.set_result(message['data'])
                     continue
      
-                handler = self.handlers.get(op)
+                handler = self.handlers.get(op) # type: ignore
                 if handler:
-                    wrapped = self._run_handler(handler, message, nonce)
+                    wrapped = self._run_handler(handler, message=message['data'], nonce=nonce)
                     asyncio.create_task(wrapped,
                                         name=f"redis-ipc: {op}")
         except asyncio.CancelledError:
             await self.channel.unsubscribe(self.channel_address)
 
 
-    async def start(self):
+    async def start(self) -> None:
         """
         Starts the IPC server
         """
         await self.listen_ipc()
 
 
-    async def close(self):
+    async def close(self) -> None:
         """
         Close the IPC reciever
         """
         await self.channel.unsubscribe(self.channel_address)
+
