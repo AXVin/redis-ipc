@@ -1,12 +1,11 @@
 
 import os
 import json
-from typing import Any, Coroutine, Dict, Callable, List, Optional, TYPE_CHECKING, TypedDict, Union
+from typing import Any, Coroutine, Dict, Callable, List, Optional, TypedDict, Union
 import asyncio
 
-if TYPE_CHECKING:
-    from asyncio.events import AbstractEventLoop
-    from aioredis import Redis
+from asyncio.events import AbstractEventLoop
+from aioredis import Redis
 
 JSON = Optional[Union[str, float, bool, List['JSON'], Dict[str, 'JSON']]]
 Handler = Callable[[Optional[JSON]], Coroutine[Any, Any, JSON]] 
@@ -99,7 +98,10 @@ class IPC:
     async def _run_handler(self, handler: Handler,
                            nonce: Optional[str], message: JSON = None) -> None:
         try:
-            resp = await handler(message)
+            if message:
+                resp = await handler(message)
+            else:
+                resp = await handler() # type: ignore
 
             if resp and nonce:
                 data: IPCMessage = {
@@ -124,20 +126,20 @@ class IPC:
             async for msg in self.channel.listen():
                 if msg.get("type") != "message":
                     continue
-                data: Union[str, bytes] = msg.get('data')
-                message: IPCMessage = json.loads(data)
-                op = message.pop("op", None)
-                nonce = message.pop("nonce", None)
-                sender = message.pop("sender", None)
+                message: IPCMessage = json.loads(msg.get('data'))
+                op = message.get("op")
+                nonce = message.get("nonce")
+                sender = message.get("sender")
+                data = message.get('data')
                 if op is None and sender != self.identity and \
                         nonce is not None and nonce in self.nonces:
                     future = self.nonces.get(nonce)
-                    future.set_result(message['data'])
+                    future.set_result(data)
                     continue
      
                 handler = self.handlers.get(op) # type: ignore
                 if handler:
-                    wrapped = self._run_handler(handler, message=message['data'], nonce=nonce)
+                    wrapped = self._run_handler(handler, message=data, nonce=nonce)
                     asyncio.create_task(wrapped,
                                         name=f"redis-ipc: {op}")
         except asyncio.CancelledError:
