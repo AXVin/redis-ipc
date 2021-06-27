@@ -42,15 +42,21 @@ setup(
     keywords=['aioredis', 'redis', 'ipc'],
     install_requires=requirements,
     classifiers=[
-        'Development Status :: 1 - Alpha',
+        'Development Status :: 5 - Production/Stable',
         'Natural Language :: English',
         'Intended Audience :: Developers',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Operating System :: OS Independent',
+        'Topic :: Communications',
+        'Topic :: Software Development :: Libraries',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: Utilities',
+        'Topic :: Typing :: Typed',
+        'Topic :: License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)'
     ],
     packages=['redisipc'],
     long_description=long_description,
     long_description_content_type="text/markdown",
-    python_requires=">=3.8"
+    python_requires=">=3.8",
 )
