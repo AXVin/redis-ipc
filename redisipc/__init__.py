@@ -1,5 +1,5 @@
 """
-Copyright (C) 2021  AXVin
+Copyright (C) 2021-present  AXVin
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published
@@ -15,5 +15,13 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+__title__ = 'discord'
+__author__ = 'AXVin'
+__license__ = 'AGPL v3'
+__copyright__ = 'Copyright 2021-present AXVin'
 __version__ = "0.0.1"
 from redisipc.ipc import *
+
+VersionInfo = namedtuple('VersionInfo', 'major minor micro releaselevel serial')
+
+version_info = VersionInfo(major=0, minor=0, micro=1, releaselevel='final', serial=0)
