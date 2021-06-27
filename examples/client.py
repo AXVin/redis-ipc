@@ -1,6 +1,6 @@
 import asyncio
 import aioredis
-from ipc import IPC
+from redisipc import IPC
 
 async def main():
     pool = await aioredis.from_url("redis://localhost")

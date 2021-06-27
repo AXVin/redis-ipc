@@ -1,6 +1,6 @@
 import asyncio
 import aioredis
-from ipc import IPC
+from redisipc import IPC
 
 class Server(IPC):
     async def handle_hello(self):
