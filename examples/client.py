@@ -2,6 +2,7 @@ import asyncio
 import aioredis
 from redisipc import IPC
 
+
 async def main():
     pool = await aioredis.from_url("redis://localhost")
     ipc = IPC(pool)
@@ -15,6 +16,7 @@ async def main():
     finally:
         await ipc.close()
         task.cancel()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
