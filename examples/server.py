@@ -2,6 +2,7 @@ import asyncio
 import aioredis
 from redisipc import IPC
 
+
 class Server(IPC):
     async def handle_hello(self):
         return {"hello": "world"}

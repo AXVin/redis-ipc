@@ -32,13 +32,14 @@ __all__ = (
 
 
 JSON = Optional[Union[str, float, bool, List['JSON'], Dict[str, 'JSON']]]
-Handler = Callable[[Optional[JSON]], Coroutine[Any, Any, JSON]] 
+Handler = Callable[[Optional[JSON]], Coroutine[Any, Any, JSON]]
 
 
 class _BaseIPCMessage(TypedDict, total=False):
     op: str
     data: JSON
     nonce: str
+
 
 class IPCMessage(_BaseIPCMessage):
     sender: str
@@ -47,9 +48,15 @@ class IPCMessage(_BaseIPCMessage):
 def random_hex(_bytes: int = 16) -> str:
     return os.urandom(_bytes).hex()
 
+
 class IPC:
-    def __init__(self, pool: Redis, loop: AbstractEventLoop=None,
-                 channel: str = "ipc:1", identity: str = None) -> None:
+    def __init__(
+        self,
+        pool: Redis,
+        loop: AbstractEventLoop = None,
+        channel: str = "ipc:1",
+        identity: str = None,
+    ) -> None:
         self.redis = pool
         self.channel_address = channel
         self.identity = identity or random_hex()
@@ -62,14 +69,11 @@ class IPC:
         }
         self.nonces: Dict[str, asyncio.Future[JSON]] = {}
 
-
     def add_handler(self, name: str, func: Handler) -> None:
         self.handlers[name] = func
 
-
     def remove_handler(self, name: str) -> None:
         del self.handlers[name]
-
 
     async def publish(self, op: str, **data: JSON) -> None:
         """
@@ -79,7 +83,6 @@ class IPC:
         data["op"] = op
         resp = json.dumps(data)
         await self.redis.publish(self.channel_address, resp)
-
 
     async def get(self, op: str, *, timeout: int = 5, **data: JSON) -> JSON:
         """
@@ -118,20 +121,20 @@ class IPC:
         finally:
             del self.nonces[nonce]
 
-
-    async def _run_handler(self, handler: Handler,
-                           nonce: Optional[str], message: JSON = None) -> None:
+    async def _run_handler(
+        self, handler: Handler, nonce: Optional[str], message: JSON = None
+    ) -> None:
         try:
             if message:
                 resp = await handler(message)
             else:
-                resp = await handler() # type: ignore
+                resp = await handler()  # type: ignore
 
             if resp and nonce:
                 data: IPCMessage = {
                     'nonce': nonce,
                     'sender': self.identity,
-                    'data': resp
+                    'data': resp,
                 }
                 resp = json.dumps(data)
                 await self.redis.publish(self.channel_address, resp)
@@ -142,7 +145,6 @@ class IPC:
         if self.channel is None:
             pubsub = self.channel = self.redis.pubsub()
             await pubsub.subscribe(self.channel_address)
-
 
     async def listen_ipc(self) -> None:
         try:
@@ -155,20 +157,22 @@ class IPC:
                 nonce = message.get("nonce")
                 sender = message.get("sender")
                 data = message.get('data')
-                if op is None and sender != self.identity and \
-                        nonce is not None and nonce in self.nonces:
+                if (
+                    op is None
+                    and sender != self.identity
+                    and nonce is not None
+                    and nonce in self.nonces
+                ):
                     future = self.nonces.get(nonce)
                     future.set_result(data)
                     continue
-     
-                handler = self.handlers.get(op) # type: ignore
+
+                handler = self.handlers.get(op)  # type: ignore
                 if handler:
                     wrapped = self._run_handler(handler, message=data, nonce=nonce)
-                    asyncio.create_task(wrapped,
-                                        name=f"redis-ipc: {op}")
+                    asyncio.create_task(wrapped, name=f"redis-ipc: {op}")
         except asyncio.CancelledError:
             await self.channel.unsubscribe(self.channel_address)
-
 
     async def start(self) -> None:
         """
@@ -176,10 +180,8 @@ class IPC:
         """
         await self.listen_ipc()
 
-
     async def close(self) -> None:
         """
         Close the IPC reciever
         """
         await self.channel.unsubscribe(self.channel_address)
-
