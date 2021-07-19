@@ -121,9 +121,7 @@ class IPC:
         finally:
             del self.nonces[nonce]
 
-    async def _run_handler(
-        self, handler: Handler, nonce: Optional[str], message: JSON = None
-    ) -> None:
+    async def _run_handler(self, handler: Handler, nonce: Optional[str], message: JSON = None) -> None:
         try:
             if message:
                 resp = await handler(message)
@@ -157,12 +155,7 @@ class IPC:
                 nonce = message.get("nonce")
                 sender = message.get("sender")
                 data = message.get('data')
-                if (
-                    op is None
-                    and sender != self.identity
-                    and nonce is not None
-                    and nonce in self.nonces
-                ):
+                if op is None and sender != self.identity and nonce is not None and nonce in self.nonces:
                     future = self.nonces.get(nonce)
                     future.set_result(data)
                     continue
