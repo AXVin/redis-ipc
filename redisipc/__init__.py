@@ -21,8 +21,8 @@ __title__ = 'discord'
 __author__ = 'AXVin'
 __license__ = 'AGPL v3'
 __copyright__ = 'Copyright 2021-present AXVin'
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 VersionInfo = namedtuple('VersionInfo', 'major minor micro releaselevel serial')
 
-version_info = VersionInfo(major=0, minor=0, micro=1, releaselevel='final', serial=0)
+version_info = VersionInfo(major=0, minor=0, micro=2, releaselevel='final', serial=0)
