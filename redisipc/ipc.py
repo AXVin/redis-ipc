@@ -75,14 +75,20 @@ class IPC:
     def remove_handler(self, name: str) -> None:
         del self.handlers[name]
 
-    async def publish(self, op: str, **data: JSON) -> None:
+    async def publish(self, op: str, *, nonce: Optional[str]=None, **data: JSON) -> None:
         """
         A normal publish to the current channel
         with no expectations of any returns
         """
-        data["op"] = op
-        resp = json.dumps(data)
-        await self.redis.publish(self.channel_address, resp)
+        message: IPCMessage = {
+            "op": op,
+            "data": data,
+            "sender": self.identity,
+            # "nonce": nonce,
+        }
+        if nonce:
+            message["nonce"] = nonce
+        await self.redis.publish(self.channel_address, json.dumps(message))
 
     async def get(self, op: str, *, timeout: int = 5, **data: JSON) -> JSON:
         """
@@ -108,15 +114,11 @@ class IPC:
             when timeout runs out
         """
         nonce = random_hex()
-        # data["op"] = op
-        data["nonce"] = nonce
-        data["sender"] = self.identity
-
         future: asyncio.Future[JSON] = self.loop.create_future()
         self.nonces[nonce] = future
 
         try:
-            await self.publish(op, **data)
+            await self.publish(op, nonce=nonce, **data)
             return await asyncio.wait_for(future, timeout=timeout)
         finally:
             del self.nonces[nonce]

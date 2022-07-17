@@ -12,10 +12,11 @@ async def main():
     except asyncio.TimeoutError:
         print("We timed out")
     else:
-        print("Data provided by the first producer:", response)
-    finally:
-        await ipc.close()
-        task.cancel()
+        print("Data provided by the first producer of handle_hello:", response)
+    resp = await ipc.get("data", my_data="Hi Coders!")
+    print(f"Response from handle_data: {resp}")
+    await ipc.close()
+    task.cancel()
 
 
 if __name__ == "__main__":

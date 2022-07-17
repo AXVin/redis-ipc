@@ -1,4 +1,5 @@
 import asyncio
+from typing import Dict
 import aioredis
 from redisipc import IPC
 
@@ -6,6 +7,10 @@ from redisipc import IPC
 class Server(IPC):
     async def handle_hello(self):
         return {"hello": "world"}
+
+    async def handle_data(self, data: Dict):
+        data["ack"] = "The message was successfully received by the server!"
+        return data
 
 
 async def main():

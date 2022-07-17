@@ -14,15 +14,20 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from collections import namedtuple
+from typing import NamedTuple
 from redisipc.ipc import *
 
-__title__ = 'discord'
+__title__ = 'redis-ipc'
 __author__ = 'AXVin'
 __license__ = 'AGPL v3'
 __copyright__ = 'Copyright 2021-present AXVin'
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
-VersionInfo = namedtuple('VersionInfo', 'major minor micro releaselevel serial')
+class VersionInfo(NamedTuple):
+    major: int
+    minor: int
+    micro: int
+    releaselevel: str
+    serial: int
 
-version_info = VersionInfo(major=0, minor=0, micro=2, releaselevel='final', serial=0)
+version_info = VersionInfo(major=0, minor=0, micro=3, releaselevel='final', serial=0)
