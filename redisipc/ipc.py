@@ -53,9 +53,9 @@ class IPC:
     def __init__(
         self,
         pool: Redis,
-        loop: AbstractEventLoop = None,
+        loop: Optional[AbstractEventLoop] = None,
         channel: str = "ipc:1",
-        identity: str = None,
+        identity: Optional[str] = None,
     ) -> None:
         self.redis = pool
         self.channel_address = channel
@@ -147,6 +147,8 @@ class IPC:
     async def listen_ipc(self) -> None:
         try:
             await self.ensure_channel()
+            if self.channel is None:
+                raise Exception("Could not subscribe to redis channel")
             async for msg in self.channel.listen():
                 if msg.get("type") != "message":
                     continue
@@ -157,7 +159,8 @@ class IPC:
                 data = message.get('data')
                 if op is None and sender != self.identity and nonce is not None and nonce in self.nonces:
                     future = self.nonces.get(nonce)
-                    future.set_result(data)
+                    if future:
+                        future.set_result(data)
                     continue
 
                 handler = self.handlers.get(op)  # type: ignore
@@ -165,7 +168,8 @@ class IPC:
                     wrapped = self._run_handler(handler, message=data, nonce=nonce)
                     asyncio.create_task(wrapped, name=f"redis-ipc: {op}")
         except asyncio.CancelledError:
-            await self.channel.unsubscribe(self.channel_address)
+            if self.channel:
+                await self.channel.unsubscribe(self.channel_address)
 
     async def start(self) -> None:
         """
@@ -177,4 +181,5 @@ class IPC:
         """
         Close the IPC reciever
         """
-        await self.channel.unsubscribe(self.channel_address)
+        if self.channel:
+            await self.channel.unsubscribe(self.channel_address)
