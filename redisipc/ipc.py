@@ -75,7 +75,7 @@ class IPC:
     def remove_handler(self, name: str) -> None:
         del self.handlers[name]
 
-    async def publish(self, op: str, *, nonce: Optional[str]=None, **data: JSON) -> None:
+    async def publish(self, op: str, *, nonce: Optional[str] = None, **data: JSON) -> None:
         """
         A normal publish to the current channel
         with no expectations of any returns
@@ -112,7 +112,11 @@ class IPC:
         -------
         asyncio.errors.TimeoutError:
             when timeout runs out
+        RuntimeError:
+            when the ipc class has not been started beforehand
         """
+        if self.channel is None:
+            raise RuntimeError(f"Must run {self.__class__.__name__}.start to use this method!")
         nonce = random_hex()
         future: asyncio.Future[JSON] = self.loop.create_future()
         self.nonces[nonce] = future
