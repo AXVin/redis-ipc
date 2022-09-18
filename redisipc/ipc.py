@@ -18,11 +18,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
 import json
+import logging
 from typing import Any, Coroutine, Dict, Callable, List, Optional, TypedDict, Union
 import asyncio
 
 from asyncio.events import AbstractEventLoop
 from aioredis import Redis
+
+logger = logging.getLogger('redis-ipc')
 
 __all__ = (
     'JSON',
@@ -39,6 +42,7 @@ class _BaseIPCMessage(TypedDict, total=False):
     op: str
     data: JSON
     nonce: str
+    required_identity: str
 
 
 class IPCMessage(_BaseIPCMessage):
@@ -68,14 +72,21 @@ class IPC:
             if method.startswith("handle_")
         }
         self.nonces: Dict[str, asyncio.Future[JSON]] = {}
+        logger.info(
+            f"Created an IPC instance with identity: {self.identity!r} and {len(self.handlers)} handlers"
+        )
 
     def add_handler(self, name: str, func: Handler) -> None:
         self.handlers[name] = func
+        logger.info(f"Added logger named {name!r}")
 
     def remove_handler(self, name: str) -> None:
         del self.handlers[name]
+        logger.debug(f"Removed logger named {name!r}")
 
-    async def publish(self, op: str, *, nonce: Optional[str] = None, **data: JSON) -> None:
+    async def publish(
+        self, op: str, *, required_identity: Optional[str] = None, nonce: Optional[str] = None, **data: JSON
+    ) -> None:
         """
         A normal publish to the current channel
         with no expectations of any returns
@@ -88,9 +99,14 @@ class IPC:
         }
         if nonce:
             message["nonce"] = nonce
+        if required_identity:
+            message["required_identity"] = required_identity
+        logger.debug(f"Published {message}")
         await self.redis.publish(self.channel_address, json.dumps(message))
 
-    async def get(self, op: str, *, timeout: int = 5, **data: JSON) -> JSON:
+    async def get(
+        self, op: str, *, timeout: int = 5, required_identity: Optional[str] = None, **data: JSON
+    ) -> JSON:
         """
         An IPC call to get a response back
 
@@ -100,6 +116,10 @@ class IPC:
             The operation to call on the other processes
         timeout: int
             How long to wait for a response
+            default 5 seconds
+        required_identity: str
+            The identity of the sender that should send the response
+            set it to None to use the first response received from any identity
         data: kwargs
             The data to be sent
 
@@ -122,7 +142,7 @@ class IPC:
         self.nonces[nonce] = future
 
         try:
-            await self.publish(op, nonce=nonce, **data)
+            await self.publish(op, nonce=nonce, required_identity=required_identity, **data)
             return await asyncio.wait_for(future, timeout=timeout)
         finally:
             del self.nonces[nonce]
@@ -159,10 +179,12 @@ class IPC:
                 if msg.get("type") != "message":
                     continue
                 message: IPCMessage = json.loads(msg.get('data'))
+                logging.debug(f"Received message: {message}")
                 op = message.get("op")
                 nonce = message.get("nonce")
                 sender = message.get("sender")
                 data = message.get('data')
+                required_identity = message.get('required_identity')
                 if op is None and sender != self.identity and nonce is not None and nonce in self.nonces:
                     future = self.nonces.get(nonce)
                     if future:
@@ -171,6 +193,8 @@ class IPC:
 
                 handler = self.handlers.get(op)  # type: ignore
                 if handler:
+                    if required_identity and self.identity != required_identity:
+                        continue
                     wrapped = self._run_handler(handler, message=data, nonce=nonce)
                     asyncio.create_task(wrapped, name=f"redis-ipc: {op}")
         except asyncio.CancelledError:
