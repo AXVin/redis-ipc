@@ -26,6 +26,8 @@ async def main():
     resp2 = await ipc.get("data", required_identity="star", my_data="Can only be seen by star")
     print(f"Response from star: {resp2}")
 
+    await ipc.get("will_error")
+
     await ipc.close()
     task.cancel()
 

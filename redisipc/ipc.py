@@ -164,6 +164,12 @@ class IPC:
                 await self.redis.publish(self.channel_address, resp)
         except asyncio.CancelledError:
             pass
+        except Exception as e:
+            on_error = getattr(self, 'on_error', None)
+            if on_error is not None:
+                await on_error(e, message)
+            else:
+                raise e from None
 
     async def ensure_channel(self) -> None:
         if self.channel is None:

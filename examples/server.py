@@ -4,7 +4,7 @@ from typing import Dict
 import aioredis
 from redisipc import IPC
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 class Server(IPC):
@@ -14,6 +14,12 @@ class Server(IPC):
     async def handle_data(self, data: Dict):
         data["ack"] = "The message was successfully received by the server!"
         return data  # can return the same data object after mutating
+
+    async def on_error(self, error: Exception, message):
+        print(f"Got error: {error}\n\nMessage: {message}")
+
+    async def handle_will_error(self):
+        raise RuntimeError("We errored!")
 
 
 async def main():

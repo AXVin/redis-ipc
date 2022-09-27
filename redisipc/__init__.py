@@ -21,7 +21,7 @@ __title__ = 'redis-ipc'
 __author__ = 'AXVin'
 __license__ = 'AGPL v3'
 __copyright__ = 'Copyright 2021-present AXVin'
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 class VersionInfo(NamedTuple):
@@ -32,4 +32,4 @@ class VersionInfo(NamedTuple):
     serial: int
 
 
-version_info = VersionInfo(major=0, minor=1, micro=0, releaselevel='final', serial=0)
+version_info = VersionInfo(major=0, minor=2, micro=0, releaselevel='final', serial=0)
